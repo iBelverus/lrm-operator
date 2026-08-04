@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import kopf
 import kubernetes.client as k8s
 
@@ -22,9 +24,9 @@ async def on_template_create(body, spec, name, namespace, logger, **kwargs):
     logger.info(f"Template {name} created with type={template_spec.type}")
 
     if template_spec.type == "generated":
-        await _create_generated_resources(name, namespace, template_spec, logger)
+        await _create_generated_resources(name, namespace, body, template_spec, logger)
     elif template_spec.type == "static":
-        await _create_static_resources(name, namespace, template_spec, logger)
+        await _create_static_resources(name, namespace, body, template_spec, logger)
 
     status = LockableResourceTemplateStatus(ready=True)
     await _update_template_status(name, namespace, status, logger)
@@ -36,9 +38,9 @@ async def on_template_update(body, spec, name, namespace, old, new, logger, **kw
     logger.info(f"Template {name} updated")
 
     if template_spec.type == "generated":
-        await _create_generated_resources(name, namespace, template_spec, logger)
+        await _create_generated_resources(name, namespace, body, template_spec, logger)
     elif template_spec.type == "static":
-        await _create_static_resources(name, namespace, template_spec, logger)
+        await _create_static_resources(name, namespace, body, template_spec, logger)
 
 
 @kopf.on.delete(API_GROUP, API_VERSION, TEMPLATE_PLURAL)
@@ -49,40 +51,48 @@ async def on_template_delete(body, name, namespace, logger, **kwargs):
 
 
 async def _create_generated_resources(
-    name: str,
+    template_name: str,
     namespace: str,
+    template_body: dict,
     template_spec: LockableResourceTemplateSpec,
     logger,
 ):
     count = template_spec.number or 1
     for i in range(count):
-        child_name = f"{name}-{i}"
-        await _create_child_resource(child_name, namespace, template_spec, logger)
-    logger.info(f"Created {count} generated children for template {name}")
+        child_name = f"{template_name}-{i}"
+        await _create_child_resource(child_name, namespace, template_body, template_spec, logger)
+    logger.info(f"Created {count} generated children for template {template_name}")
 
 
 async def _create_static_resources(
-    name: str,
+    template_name: str,
     namespace: str,
+    template_body: dict,
     template_spec: LockableResourceTemplateSpec,
     logger,
 ):
     if not template_spec.resource_list:
         return
     for item in template_spec.resource_list:
-        await _create_child_resource(item.name, namespace, template_spec, logger)
-    logger.info(f"Created {len(template_spec.resource_list)} static children for template {name}")
+        await _create_child_resource(item.name, namespace, template_body, template_spec, logger)
+    logger.info(
+        f"Created {len(template_spec.resource_list)} static children for template {template_name}"
+    )
 
 
 async def _create_child_resource(
     child_name: str,
     namespace: str,
+    template_body: dict,
     template_spec: LockableResourceTemplateSpec,
     logger,
 ):
     labels = template_spec.extra_labels.copy() if template_spec.extra_labels else {}
     if template_spec.main_label:
         labels["lrm.openlab.io/main-label"] = template_spec.main_label
+
+    template_uid = template_body.get("metadata", {}).get("uid", "")
+    template_name = template_body.get("metadata", {}).get("name", "")
 
     resource_body = {
         "apiVersion": f"{API_GROUP}/{API_VERSION}",
@@ -91,11 +101,19 @@ async def _create_child_resource(
             "name": child_name,
             "labels": labels,
             "annotations": {
-                "lrm.openlab.io/template-ref": template_spec.main_label or "",
+                "lrm.openlab.io/template-ref": template_name,
             },
+            "ownerReferences": [
+                {
+                    "apiVersion": f"{API_GROUP}/{API_VERSION}",
+                    "kind": "LockableResourceTemplate",
+                    "name": template_name,
+                    "uid": template_uid,
+                }
+            ],
         },
         "spec": {
-            "templateRef": {"name": child_name.rsplit("-", 1)[0]},
+            "templateRef": {"name": template_name},
             "nodeSelector": template_spec.node_selector,
             "resources": template_spec.resources,
             "tolerations": template_spec.tolerations,
@@ -109,7 +127,8 @@ async def _create_child_resource(
     }
 
     try:
-        CUSTOM_API.create_namespaced_custom_object(
+        await asyncio.to_thread(
+            CUSTOM_API.create_namespaced_custom_object,
             group=API_GROUP,
             version=API_VERSION,
             namespace=namespace,
@@ -130,7 +149,8 @@ async def _update_template_status(
     logger,
 ):
     try:
-        existing = CUSTOM_API.get_namespaced_custom_object(
+        existing = await asyncio.to_thread(
+            CUSTOM_API.get_namespaced_custom_object,
             group=API_GROUP,
             version=API_VERSION,
             namespace=namespace,
@@ -138,7 +158,8 @@ async def _update_template_status(
             name=name,
         )
         existing["status"] = status.model_dump(by_alias=True, exclude_none=True)
-        CUSTOM_API.replace_namespaced_custom_object(
+        await asyncio.to_thread(
+            CUSTOM_API.replace_namespaced_custom_object,
             group=API_GROUP,
             version=API_VERSION,
             namespace=namespace,

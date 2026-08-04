@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import datetime
 
 import kopf
@@ -68,7 +69,8 @@ async def on_pod_event(event, body, name, namespace, logger, **kwargs):
 
 async def _acquire_lock(resource_name: str, namespace: str, pod_name: str, logger):
     try:
-        existing = CUSTOM_API.get_namespaced_custom_object(
+        existing = await asyncio.to_thread(
+            CUSTOM_API.get_namespaced_custom_object,
             group=API_GROUP,
             version=API_VERSION,
             namespace=namespace,
@@ -98,7 +100,8 @@ async def _acquire_lock(resource_name: str, namespace: str, pod_name: str, logge
             "lockedAt": datetime.datetime.now(datetime.UTC).isoformat(),
         }
 
-        CUSTOM_API.replace_namespaced_custom_object(
+        await asyncio.to_thread(
+            CUSTOM_API.replace_namespaced_custom_object,
             group=API_GROUP,
             version=API_VERSION,
             namespace=namespace,
@@ -117,7 +120,8 @@ async def _acquire_lock(resource_name: str, namespace: str, pod_name: str, logge
 
 async def _release_lock(resource_name: str, namespace: str, logger):
     try:
-        existing = CUSTOM_API.get_namespaced_custom_object(
+        existing = await asyncio.to_thread(
+            CUSTOM_API.get_namespaced_custom_object,
             group=API_GROUP,
             version=API_VERSION,
             namespace=namespace,
@@ -146,7 +150,8 @@ async def _release_lock(resource_name: str, namespace: str, logger):
             "reservedAt": current_status.get("reservedAt"),
         }
 
-        CUSTOM_API.replace_namespaced_custom_object(
+        await asyncio.to_thread(
+            CUSTOM_API.replace_namespaced_custom_object,
             group=API_GROUP,
             version=API_VERSION,
             namespace=namespace,
@@ -170,7 +175,8 @@ async def _update_resource_status(
     logger,
 ):
     try:
-        existing = CUSTOM_API.get_namespaced_custom_object(
+        existing = await asyncio.to_thread(
+            CUSTOM_API.get_namespaced_custom_object,
             group=API_GROUP,
             version=API_VERSION,
             namespace=namespace,
@@ -178,7 +184,8 @@ async def _update_resource_status(
             name=name,
         )
         existing["status"] = status.model_dump(by_alias=True, exclude_none=True)
-        CUSTOM_API.replace_namespaced_custom_object(
+        await asyncio.to_thread(
+            CUSTOM_API.replace_namespaced_custom_object,
             group=API_GROUP,
             version=API_VERSION,
             namespace=namespace,
