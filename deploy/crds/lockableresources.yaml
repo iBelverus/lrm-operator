@@ -18,6 +18,19 @@ spec:
       storage: true
       subresources:
         status: {}
+      additionalPrinterColumns:
+        - name: PHASE
+          type: string
+          jsonPath: .status.phase
+          description: "Current phase (free, reserved, locked)"
+        - name: POD
+          type: string
+          jsonPath: .status.podRef.name
+          description: "Pod holding the lock"
+        - name: RESERVED BY
+          type: string
+          jsonPath: .status.reservedBy
+          description: "Personnel who reserved the resource"
       schema:
         openAPIV3Schema:
           type: object

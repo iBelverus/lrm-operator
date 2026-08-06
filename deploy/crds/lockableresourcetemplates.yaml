@@ -18,6 +18,19 @@ spec:
       storage: true
       subresources:
         status: {}
+      additionalPrinterColumns:
+        - name: TYPE
+          type: string
+          jsonPath: .spec.type
+          description: "Template type (generated or static)"
+        - name: READY
+          type: boolean
+          jsonPath: .status.ready
+          description: "Whether the template has been processed"
+        - name: COUNT
+          type: integer
+          jsonPath: .status.generatedCount
+          description: "Number of children created"
       schema:
         openAPIV3Schema:
           type: object
