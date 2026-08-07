@@ -66,11 +66,13 @@ async def on_pod_event(event, body, name, namespace, logger, **kwargs):
     if not resource_name:
         return
 
-    logger.info(f"Pod {name} references lockable resource: {resource_name}")
+    logger.debug(f"Pod {name} event={event['type']} resource={resource_name}")
 
-    if event["type"] == "ADDED":
-        if body.get("status", {}).get("phase") == "Running":
+    if event["type"] in ("ADDED", "MODIFIED"):
+        if body.get("spec", {}).get("nodeName"):
             await _acquire_lock(resource_name, namespace, name, logger)
+        if body.get("status", {}).get("phase") in ("Succeeded", "Failed"):
+            await _release_lock(resource_name, namespace, logger)
     elif event["type"] == "DELETED":
         await _release_lock(resource_name, namespace, logger)
 
