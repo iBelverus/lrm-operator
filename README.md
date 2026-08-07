@@ -47,13 +47,46 @@ kubectl get lockableresources
 # oscilloscope      free
 # fpga-devkit       free
 
-# Test manual reservation
+### Testing Manual Reservation
+
+```bash
 kubectl patch lockableresource thermal-camera --type=merge \
   -p '{"status":{"phase":"reserved","reservedBy":"ops-team"}}'
 
-# Test Pod lock (annotate a Pod with the resource name)
-kubectl run test-pod --image=nginx --restart=Never \
-  --overrides='{"metadata":{"annotations":{"lrm.openlab.io/lockable-resource":"ci-runners-0"}}}'
+kubectl get lr
+# NAME              PHASE      POD   RESERVED BY   AGE
+# thermal-camera    reserved          ops-team      1m
+```
+
+### Testing Pod Locking
+
+Example Pods and Deployments with lock annotations are in [`examples/`](examples/):
+
+| File | Locks | Description |
+|---|---|---|
+| [`pod-with-lock.yaml`](examples/pod-with-lock.yaml) | `ci-runners-0` | Standalone CI job Pod |
+| [`deployment-with-lock.yaml`](examples/deployment-with-lock.yaml) | `thermal-camera` | Deployment managing a lab camera device |
+
+```bash
+# Apply example templates first (creates LockableResources)
+kubectl apply -f examples/generated-template.yaml
+
+# Run a Pod that acquires a lock
+kubectl apply -f examples/pod-with-lock.yaml
+
+# Watch phase transition in real time
+kubectl get lr -w
+
+# Deploy a long-running controller that holds a device lock
+kubectl apply -f examples/deployment-with-lock.yaml
+
+# Verify locks are held
+kubectl get lr
+# NAME              PHASE     POD                       RESERVED BY   AGE
+# ci-runners-0      locked    ci-job-runner                           10s
+# ci-runners-1      free                                               5m
+# thermal-camera    locked    camera-controller-xxxx                   5s
+```
 ```
 
 ## Quick Start

@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: camera-controller
+  labels:
+    app: camera-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: camera-controller
+  template:
+    metadata:
+      labels:
+        app: camera-controller
+      annotations:
+        lrm.openlab.io/lockable-resource: thermal-camera
+    spec:
+      containers:
+        - name: controller
+          image: busybox:latest
+          command:
+            - sh
+            - -c
+            - "echo 'Acquired thermal camera, streaming...' && sleep 3600"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
