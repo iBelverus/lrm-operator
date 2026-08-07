@@ -5,6 +5,7 @@ import datetime
 
 import kopf
 import kubernetes.client as k8s
+import kubernetes
 
 from ..models import LockableResourceStatus
 from ..state_machine import VALID_PHASES, is_valid_transition, transition
@@ -12,6 +13,13 @@ from ..state_machine import VALID_PHASES, is_valid_transition, transition
 API_GROUP = "lrm.openlab.io"
 API_VERSION = "v1alpha1"
 RESOURCE_PLURAL = "lockableresources"
+
+# Load in-cluster config when running inside a pod,
+# or local kubeconfig during development
+try:
+    kubernetes.config.load_incluster_config()
+except kubernetes.config.ConfigException:
+    kubernetes.config.load_kube_config()
 
 CUSTOM_API = k8s.CustomObjectsApi()
 CORE_API = k8s.CoreV1Api()

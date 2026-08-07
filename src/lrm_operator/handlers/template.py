@@ -4,6 +4,7 @@ import asyncio
 
 import kopf
 import kubernetes.client as k8s
+import kubernetes
 
 from ..models import (
     LockableResourceTemplateSpec,
@@ -14,6 +15,13 @@ API_GROUP = "lrm.openlab.io"
 API_VERSION = "v1alpha1"
 TEMPLATE_PLURAL = "lockableresourcetemplates"
 RESOURCE_PLURAL = "lockableresources"
+
+# Load in-cluster config when running inside a pod,
+# or local kubeconfig during development
+try:
+    kubernetes.config.load_incluster_config()
+except kubernetes.config.ConfigException:
+    kubernetes.config.load_kube_config()
 
 CUSTOM_API = k8s.CustomObjectsApi()
 
