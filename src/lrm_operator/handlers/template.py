@@ -3,8 +3,8 @@ from __future__ import annotations
 import asyncio
 
 import kopf
-import kubernetes.client as k8s
 import kubernetes
+import kubernetes.client as k8s
 
 from ..models import (
     LockableResourceTemplateSpec,
@@ -31,12 +31,13 @@ async def on_template_create(body, spec, name, namespace, logger, **kwargs):
     template_spec = LockableResourceTemplateSpec(**spec)
     logger.info(f"Template {name} created with type={template_spec.type}")
 
+    count = 0
     if template_spec.type == "generated":
-        await _create_generated_resources(name, namespace, body, template_spec, logger)
+        count = await _create_generated_resources(name, namespace, body, template_spec, logger)
     elif template_spec.type == "static":
-        await _create_static_resources(name, namespace, body, template_spec, logger)
+        count = await _create_static_resources(name, namespace, body, template_spec, logger)
 
-    status = LockableResourceTemplateStatus(ready=True)
+    status = LockableResourceTemplateStatus(ready=True, generated_count=count)
     await _update_template_status(name, namespace, status, logger)
 
 
@@ -45,10 +46,14 @@ async def on_template_update(body, spec, name, namespace, old, new, logger, **kw
     template_spec = LockableResourceTemplateSpec(**spec)
     logger.info(f"Template {name} updated")
 
+    count = 0
     if template_spec.type == "generated":
-        await _create_generated_resources(name, namespace, body, template_spec, logger)
+        count = await _create_generated_resources(name, namespace, body, template_spec, logger)
     elif template_spec.type == "static":
-        await _create_static_resources(name, namespace, body, template_spec, logger)
+        count = await _create_static_resources(name, namespace, body, template_spec, logger)
+
+    status = LockableResourceTemplateStatus(ready=True, generated_count=count)
+    await _update_template_status(name, namespace, status, logger)
 
 
 @kopf.on.delete(API_GROUP, API_VERSION, TEMPLATE_PLURAL)
@@ -64,12 +69,13 @@ async def _create_generated_resources(
     template_body: dict,
     template_spec: LockableResourceTemplateSpec,
     logger,
-):
+) -> int:
     count = template_spec.number or 1
     for i in range(count):
         child_name = f"{template_name}-{i}"
         await _create_child_resource(child_name, namespace, template_body, template_spec, logger)
     logger.info(f"Created {count} generated children for template {template_name}")
+    return count
 
 
 async def _create_static_resources(
@@ -78,14 +84,14 @@ async def _create_static_resources(
     template_body: dict,
     template_spec: LockableResourceTemplateSpec,
     logger,
-):
+) -> int:
     if not template_spec.resource_list:
-        return
+        return 0
     for item in template_spec.resource_list:
         await _create_child_resource(item.name, namespace, template_body, template_spec, logger)
-    logger.info(
-        f"Created {len(template_spec.resource_list)} static children for template {template_name}"
-    )
+    created_count = len(template_spec.resource_list)
+    logger.info(f"Created {created_count} static children for template {template_name}")
+    return created_count
 
 
 async def _create_child_resource(

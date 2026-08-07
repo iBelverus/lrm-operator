@@ -4,8 +4,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from lrm_operator.handlers.template import _create_child_resource, _create_generated_resources
-from lrm_operator.models import LockableResourceTemplateSpec
+from lrm_operator.handlers.template import (
+    _create_child_resource,
+    _create_generated_resources,
+    _create_static_resources,
+)
+from lrm_operator.models import LockableResourceTemplateSpec, ResourceItem
 
 TEMPLATE_BODY = {
     "metadata": {
@@ -62,7 +66,10 @@ class TestTemplateCreateGeneratedResources:
                 new_callable=AsyncMock,
             ) as mock_create,
         ):
-            await _create_generated_resources("tmpl", "default", TEMPLATE_BODY, spec, AsyncMock())
+            result = await _create_generated_resources(
+                "tmpl", "default", TEMPLATE_BODY, spec, AsyncMock()
+            )
+            assert result == 3
             assert mock_create.call_count == 3
             names = [
                 mock_create.call_args_list[i].kwargs.get("body", {}).get("metadata", {}).get("name")
@@ -71,3 +78,47 @@ class TestTemplateCreateGeneratedResources:
             assert "tmpl-0" in names
             assert "tmpl-1" in names
             assert "tmpl-2" in names
+
+
+class TestTemplateCreateStaticResources:
+    @pytest.mark.asyncio
+    async def test_creates_static_children(self):
+        items = [
+            ResourceItem(name="usb-hub", labels={"device": "usb"}),
+            ResourceItem(name="gpu", labels={"device": "gpu"}),
+        ]
+        spec = LockableResourceTemplateSpec(type="static", resource_list=items)
+
+        with (
+            patch(
+                "lrm_operator.handlers.template.CUSTOM_API.create_namespaced_custom_object",
+                new_callable=AsyncMock,
+            ) as mock_create,
+        ):
+            result = await _create_static_resources(
+                "devices", "default", TEMPLATE_BODY, spec, AsyncMock()
+            )
+            assert result == 2
+            assert mock_create.call_count == 2
+            names = [
+                mock_create.call_args_list[i].kwargs.get("body", {}).get("metadata", {}).get("name")
+                for i in range(mock_create.call_count)
+            ]
+            assert "usb-hub" in names
+            assert "gpu" in names
+
+    @pytest.mark.asyncio
+    async def test_returns_zero_for_empty_list(self):
+        spec = LockableResourceTemplateSpec(type="static", resource_list=[])
+
+        with (
+            patch(
+                "lrm_operator.handlers.template.CUSTOM_API.create_namespaced_custom_object",
+                new_callable=AsyncMock,
+            ) as mock_create,
+        ):
+            result = await _create_static_resources(
+                "devices", "default", TEMPLATE_BODY, spec, AsyncMock()
+            )
+            assert result == 0
+            mock_create.assert_not_called()

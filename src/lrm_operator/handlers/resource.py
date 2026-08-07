@@ -4,8 +4,8 @@ import asyncio
 import datetime
 
 import kopf
-import kubernetes.client as k8s
 import kubernetes
+import kubernetes.client as k8s
 
 from ..models import LockableResourceStatus
 from ..state_machine import VALID_PHASES, is_valid_transition, transition
