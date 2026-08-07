@@ -163,23 +163,14 @@ async def _update_template_status(
     logger,
 ):
     try:
-        existing = await asyncio.to_thread(
-            CUSTOM_API.get_namespaced_custom_object,
-            group=API_GROUP,
-            version=API_VERSION,
-            namespace=namespace,
-            plural=TEMPLATE_PLURAL,
-            name=name,
-        )
-        existing["status"] = status.model_dump(by_alias=True, exclude_none=True)
         await asyncio.to_thread(
-            CUSTOM_API.replace_namespaced_custom_object,
+            CUSTOM_API.patch_namespaced_custom_object_status,
             group=API_GROUP,
             version=API_VERSION,
             namespace=namespace,
             plural=TEMPLATE_PLURAL,
             name=name,
-            body=existing,
+            body={"status": status.model_dump(by_alias=True, exclude_none=True)},
         )
     except k8s.exceptions.ApiException as e:
         logger.error(f"Failed to update template status: {e}")

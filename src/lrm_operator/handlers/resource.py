@@ -109,13 +109,13 @@ async def _acquire_lock(resource_name: str, namespace: str, pod_name: str, logge
         }
 
         await asyncio.to_thread(
-            CUSTOM_API.replace_namespaced_custom_object,
+            CUSTOM_API.patch_namespaced_custom_object_status,
             group=API_GROUP,
             version=API_VERSION,
             namespace=namespace,
             plural=RESOURCE_PLURAL,
             name=resource_name,
-            body=existing,
+            body={"status": existing["status"]},
         )
 
         logger.info(f"Pod {pod_name} acquired lock on {resource_name}")
@@ -159,13 +159,13 @@ async def _release_lock(resource_name: str, namespace: str, logger):
         }
 
         await asyncio.to_thread(
-            CUSTOM_API.replace_namespaced_custom_object,
+            CUSTOM_API.patch_namespaced_custom_object_status,
             group=API_GROUP,
             version=API_VERSION,
             namespace=namespace,
             plural=RESOURCE_PLURAL,
             name=resource_name,
-            body=existing,
+            body={"status": existing["status"]},
         )
 
         logger.info(f"Lock released on {resource_name}, new phase={new_phase}")
@@ -183,23 +183,14 @@ async def _update_resource_status(
     logger,
 ):
     try:
-        existing = await asyncio.to_thread(
-            CUSTOM_API.get_namespaced_custom_object,
-            group=API_GROUP,
-            version=API_VERSION,
-            namespace=namespace,
-            plural=RESOURCE_PLURAL,
-            name=name,
-        )
-        existing["status"] = status.model_dump(by_alias=True, exclude_none=True)
         await asyncio.to_thread(
-            CUSTOM_API.replace_namespaced_custom_object,
+            CUSTOM_API.patch_namespaced_custom_object_status,
             group=API_GROUP,
             version=API_VERSION,
             namespace=namespace,
             plural=RESOURCE_PLURAL,
             name=name,
-            body=existing,
+            body={"status": status.model_dump(by_alias=True, exclude_none=True)},
         )
     except k8s.exceptions.ApiException as e:
         logger.error(f"Failed to update resource status: {e}")
