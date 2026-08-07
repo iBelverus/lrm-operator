@@ -1,0 +1,155 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: lockableresources.lrm.openlab.io
+spec:
+  group: lrm.openlab.io
+  names:
+    kind: LockableResource
+    listKind: LockableResourceList
+    plural: lockableresources
+    singular: lockableresource
+    shortNames:
+      - lr
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: PHASE
+          type: string
+          jsonPath: .status.phase
+          description: "Current phase (free, reserved, locked)"
+        - name: POD
+          type: string
+          jsonPath: .status.podRef.name
+          description: "Pod holding the lock"
+        - name: RESERVED BY
+          type: string
+          jsonPath: .status.reservedBy
+          description: "Personnel who reserved the resource"
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - templateRef
+              properties:
+                templateRef:
+                  type: object
+                  required:
+                    - name
+                  properties:
+                    name:
+                      type: string
+                    kind:
+                      type: string
+                    apiVersion:
+                      type: string
+                  description: "Reference to parent LockableResourceTemplate"
+                nodeSelector:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: "Inherited node selector"
+                resources:
+                  type: object
+                  properties:
+                    limits:
+                      type: object
+                      additionalProperties:
+                        x-kubernetes-int-or-string: true
+                    requests:
+                      type: object
+                      additionalProperties:
+                        x-kubernetes-int-or-string: true
+                  description: "Inherited resource requirements"
+                tolerations:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      key:
+                        type: string
+                      operator:
+                        type: string
+                      value:
+                        type: string
+                      effect:
+                        type: string
+                      tolerationSeconds:
+                        type: integer
+                        format: int64
+                affinity:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                topologySpreadConstraints:
+                  type: array
+                  items:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                serviceAccountName:
+                  type: string
+                priorityClassName:
+                  type: string
+                schedulerName:
+                  type: string
+                runtimeClassName:
+                  type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - free
+                    - reserved
+                    - locked
+                  description: "Current phase of the lockable resource"
+                  default: "free"
+                podRef:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                    uid:
+                      type: string
+                    apiVersion:
+                      type: string
+                    kind:
+                      type: string
+                  description: "Reference to the Pod holding the lock"
+                lockedAt:
+                  type: string
+                  format: date-time
+                  description: "Timestamp when Pod acquired the lock"
+                reservedBy:
+                  type: string
+                  description: "Personnel identifier for manual reservation"
+                reservedAt:
+                  type: string
+                  format: date-time
+                  description: "Timestamp when reservation was placed"
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time

@@ -1,0 +1,149 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: lockableresourcetemplates.lrm.openlab.io
+spec:
+  group: lrm.openlab.io
+  names:
+    kind: LockableResourceTemplate
+    listKind: LockableResourceTemplateList
+    plural: lockableresourcetemplates
+    singular: lockableresourcetemplate
+    shortNames:
+      - lrt
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: TYPE
+          type: string
+          jsonPath: .spec.type
+          description: "Template type (generated or static)"
+        - name: READY
+          type: boolean
+          jsonPath: .status.ready
+          description: "Whether the template has been processed"
+        - name: COUNT
+          type: integer
+          jsonPath: .status.generatedCount
+          description: "Number of children created"
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - type
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - generated
+                    - static
+                  description: "Template type: 'generated' or 'static'"
+                number:
+                  type: integer
+                  minimum: 1
+                  description: "Number of children to generate (required when type=generated)"
+                resourceList:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required:
+                      - name
+                    properties:
+                      name:
+                        type: string
+                      labels:
+                        type: object
+                        additionalProperties:
+                          type: string
+                  description: "Static resource list (required when type=static)"
+                mainLabel:
+                  type: string
+                  description: "Label applied to all children"
+                extraLabels:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: "Additional labels merged onto children"
+                nodeSelector:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: "Node selector for child Pods"
+                resources:
+                  type: object
+                  properties:
+                    limits:
+                      type: object
+                      additionalProperties:
+                        x-kubernetes-int-or-string: true
+                    requests:
+                      type: object
+                      additionalProperties:
+                        x-kubernetes-int-or-string: true
+                  description: "Resource requirements for child Pods"
+                tolerations:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      key:
+                        type: string
+                      operator:
+                        type: string
+                      value:
+                        type: string
+                      effect:
+                        type: string
+                      tolerationSeconds:
+                        type: integer
+                        format: int64
+                affinity:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                topologySpreadConstraints:
+                  type: array
+                  items:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                serviceAccountName:
+                  type: string
+                priorityClassName:
+                  type: string
+                schedulerName:
+                  type: string
+                runtimeClassName:
+                  type: string
+            status:
+              type: object
+              properties:
+                ready:
+                  type: boolean
+                  description: "Whether the template has been processed"
+                generatedCount:
+                  type: integer
+                  description: "Number of children created"
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time

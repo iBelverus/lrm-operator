@@ -1,0 +1,24 @@
+apiVersion: lrm.openlab.io/v1alpha1
+kind: LockableResourceTemplate
+metadata:
+  name: ci-runners
+spec:
+  type: generated
+  number: 5
+  mainLabel: ci-runner
+  extraLabels:
+    env: staging
+    managed-by: lrm
+  nodeSelector:
+    role: ci-worker
+  resources:
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+  tolerations:
+    - key: ci
+      operator: Exists
+      effect: NoSchedule

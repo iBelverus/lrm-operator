@@ -1,0 +1,24 @@
+apiVersion: lrm.openlab.io/v1alpha1
+kind: LockableResourceTemplate
+metadata:
+  name: lab-devices
+spec:
+  type: static
+  resourceList:
+    - name: thermal-camera
+      labels:
+        device-type: camera
+        location: lab-a
+    - name: oscilloscope
+      labels:
+        device-type: scope
+        location: lab-a
+    - name: fpga-devkit
+      labels:
+        device-type: fpga
+        location: lab-b
+  mainLabel: lab-equipment
+  extraLabels:
+    managed-by: lrm
+  nodeSelector:
+    room: lab
